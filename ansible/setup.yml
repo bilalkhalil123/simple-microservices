@@ -1,0 +1,70 @@
+---
+- name: Configure EC2 for Kubernetes
+  hosts: k8s_node
+  become: yes
+
+  tasks:
+    - name: Create swap space
+      shell: |
+        fallocate -l 2G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      args:
+        creates: /swapfile
+        
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+        state: present
+
+    - name: Install Docker
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Install microk8s
+      shell: snap install microk8s --classic
+      args:
+        creates: /snap/bin/microk8s
+
+    - name: Add ubuntu user to microk8s group
+      user:
+        name: ubuntu
+        groups: microk8s
+        append: yes
+
+    - name: Wait for microk8s to be ready
+      shell: microk8s status --wait-ready
+      timeout: 120
+
+    - name: Enable microk8s addons
+      shell: microk8s enable dns storage ingress
+      
+    - name: Setup kubectl alias
+      shell: |
+        snap alias microk8s.kubectl kubectl
+      
+    - name: Install ArgoCD namespace
+      shell: microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
+
+    - name: Install ArgoCD
+      shell: microk8s kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
