@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: posts
-          image: muhammadbilal146/posts:latest
+          image: muhammadbilal146/posts:f6eb5573f15121acfd9171ab7f27379225d0b28b
           ports:
             - containerPort: 8001
